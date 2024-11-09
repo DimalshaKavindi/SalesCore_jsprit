@@ -17,7 +17,7 @@ import com.graphhopper.jsprit.core.problem.solution.route.activity.TourActivity;
 import com.graphhopper.jsprit.core.problem.vehicle.VehicleImpl;
 import com.graphhopper.jsprit.core.problem.vehicle.VehicleTypeImpl;
 import com.graphhopper.jsprit.core.util.Solutions;
-import com.salescore.vrp_tsp.model.SolutionResponse;
+import com.salescore.vrp_tsp.model.VRPSolutionResponse;
 import com.salescore.vrp_tsp.model.VrpRequest;
 
 import java.util.ArrayList;
@@ -32,7 +32,8 @@ public class VrpService {
         try {
             graphHopper = new GraphHopper();
             graphHopper.setGraphHopperLocation("target/routing-graph-cache");
-            graphHopper.setOSMFile("src/main/resources/osm/cambodia-latest.osm.pbf");
+            String osmFilePath = getClass().getClassLoader().getResource("osm/cambodia-latest.osm.pbf").getPath();
+            graphHopper.setOSMFile(osmFilePath);
             graphHopper.setProfiles(new Profile("car").setWeighting("fastest"));
             graphHopper.getCHPreparationHandler().setCHProfiles(new CHProfile("car"));
             graphHopper.importOrLoad();
@@ -89,35 +90,51 @@ public class VrpService {
         Collection<VehicleRoutingProblemSolution> solutions = algorithm.searchSolutions();
         VehicleRoutingProblemSolution bestSolution = Solutions.bestOf(solutions);
 
-        // Create the solution response object
-        SolutionResponse solutionResponse = new SolutionResponse();
-        solutionResponse.solution = new SolutionResponse.Solution();
-        solutionResponse.solution.costs = (int) bestSolution.getCost();
-        solutionResponse.solution.distance = 0;
-        solutionResponse.solution.time = 0;
-        solutionResponse.solution.no_vehicles = bestSolution.getRoutes().size(); // count of active routes
-        solutionResponse.solution.routes = new ArrayList<>();
+        // Create the VRPSolutionResponse object
+        VRPSolutionResponse vrpSolutionResponse = new VRPSolutionResponse();
+        VRPSolutionResponse.Solution solution = new VRPSolutionResponse.Solution();
+        solution.setCosts(bestSolution.getCost());
+        solution.setDistance(0);
+        solution.setTime(0);
+        solution.setNoVehicles(bestSolution.getRoutes().size()); // count of active routes
+        solution.setRoutes(new ArrayList<>());
 
         double totalDistance = 0;
         long totalTime = 0;
 
         for (VehicleRoute route : bestSolution.getRoutes()) {
-            SolutionResponse.Route routeResponse = new SolutionResponse.Route();
-            routeResponse.vehicle_id = route.getVehicle().getId();
-            routeResponse.activities = new ArrayList<>();
+            // Retrieve the vehicle associated with this route
+            String vehicleId = route.getVehicle().getId();
+            VrpRequest.Vehicle vehicle = vrpRequest.getVehicles().stream()
+                    .filter(v -> v.getVehicleId().equals(vehicleId))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Vehicle not found: " + vehicleId));
 
+            VRPSolutionResponse.Solution.Route routeResponse = new VRPSolutionResponse.Solution.Route();
+            routeResponse.setVehicleId(vehicleId);
+            routeResponse.setActivities(new ArrayList<>());
+
+            int loadBefore = 0;
             Location previousLocation = route.getStart().getLocation();
             double routeDistance = 0;
             long routeTime = 0;
 
-            // Add start location
-            SolutionResponse.Activity startActivity = new SolutionResponse.Activity();
-            startActivity.type = "start";
-            startActivity.location_id = "start-location"; // Specify a unique ID for start
-            startActivity.lat = route.getStart().getLocation().getCoordinate().getY();
-            startActivity.lon = route.getStart().getLocation().getCoordinate().getX();
-            startActivity.distance = 0;
-            routeResponse.activities.add(startActivity);
+            // Add start location using the vehicle's startAddress locationId
+            VRPSolutionResponse.Solution.Route.Activity startActivity = new VRPSolutionResponse.Solution.Route.Activity();
+            startActivity.setType("start");
+            startActivity.setId("start-location");  // Use the locationId from startAddress
+            startActivity.setAddress(new VRPSolutionResponse.Solution.Route.Address(
+                    "start",
+                    vehicle.getStartAddress().getLocationId(),  // Use locationId from startAddress
+                    previousLocation.getCoordinate().getY(),
+                    previousLocation.getCoordinate().getX()
+            ));
+            startActivity.setDistance(0);
+            startActivity.setDuration(0);
+            startActivity.setLoadBefore(loadBefore);
+            startActivity.setLoadAfter(loadBefore);
+            routeResponse.getActivities().add(startActivity);
+
 
             // Process activities
             for (TourActivity activity : route.getActivities()) {
@@ -128,15 +145,28 @@ public class VrpService {
                 totalDistance += distance;
                 totalTime += time;
 
-                SolutionResponse.Activity serviceActivity = new SolutionResponse.Activity();
-                serviceActivity.type = "service";
-                serviceActivity.location_id = activity.getName(); // Use original locationId from request
-                serviceActivity.lat = activity.getLocation().getCoordinate().getY();
-                serviceActivity.lon = activity.getLocation().getCoordinate().getX();
-                serviceActivity.distance = distance;
-                serviceActivity.duration = time / 1000; // Convert time from milliseconds to seconds
-                routeResponse.activities.add(serviceActivity);
+                VrpRequest.VrpService serviceRequest = vrpRequest.getServices().stream()
+                        .filter(service -> service.getAddress().getLon() == activity.getLocation().getCoordinate().getX() &&
+                                service.getAddress().getLat() == activity.getLocation().getCoordinate().getY())
+                        .findFirst()
+                        .orElseThrow(() -> new RuntimeException("Service not found"));
 
+                int serviceSize = serviceRequest.getSize();
+                VRPSolutionResponse.Solution.Route.Activity serviceActivity = new VRPSolutionResponse.Solution.Route.Activity();
+                serviceActivity.setType("visit");
+                serviceActivity.setId(serviceRequest.getId());
+                serviceActivity.setAddress(new VRPSolutionResponse.Solution.Route.Address(
+                        serviceRequest.getAddress().getLocationId(),
+                        serviceRequest.getName(),
+                        activity.getLocation().getCoordinate().getY(),
+                        activity.getLocation().getCoordinate().getX()));
+                serviceActivity.setDistance(distance);
+                serviceActivity.setDuration(time / 1000); // Convert milliseconds to seconds
+                serviceActivity.setLoadBefore(loadBefore);
+                serviceActivity.setLoadAfter(loadBefore + serviceSize);
+                loadBefore += serviceSize;
+
+                routeResponse.getActivities().add(serviceActivity);
                 previousLocation = activity.getLocation();
             }
 
@@ -149,27 +179,33 @@ public class VrpService {
             totalDistance += endDistance;
             totalTime += endTime;
 
-            SolutionResponse.Activity endActivity = new SolutionResponse.Activity();
-            endActivity.type = "end";
-            endActivity.location_id = "end-location"; // Specify a unique ID for end
-            endActivity.lat = endLocation.getCoordinate().getY();
-            endActivity.lon = endLocation.getCoordinate().getX();
-            endActivity.distance = endDistance;
-            endActivity.duration = endTime / 1000; // Convert time from milliseconds to seconds
-            routeResponse.activities.add(endActivity);
+            VRPSolutionResponse.Solution.Route.Activity endActivity = new VRPSolutionResponse.Solution.Route.Activity();
+            endActivity.setType("end");
+            endActivity.setId("end-location");
+            endActivity.setAddress(new VRPSolutionResponse.Solution.Route.Address(
+                    "end",
+                    vehicle.getStartAddress().getLocationId(),  // Use locationId from startAddress
+                    endLocation.getCoordinate().getY(),
+                    endLocation.getCoordinate().getX()));
+            endActivity.setDistance(endDistance);
+            endActivity.setDuration(endTime / 1000); // Convert time from milliseconds to seconds
+            endActivity.setLoadBefore(loadBefore);
+            endActivity.setLoadAfter(loadBefore);
+            routeResponse.getActivities().add(endActivity);
 
-            routeResponse.distance = routeDistance;
-            routeResponse.duration = routeTime / 1000; // Convert time from milliseconds to seconds
-            solutionResponse.solution.routes.add(routeResponse);
+            routeResponse.setDistance(routeDistance);
+            routeResponse.setDuration(routeTime / 1000); // Convert time from milliseconds to seconds
+            solution.getRoutes().add(routeResponse);
         }
 
-        solutionResponse.solution.distance = totalDistance;
-        solutionResponse.solution.time = (int) totalTime / 1000; // Convert milliseconds to seconds
+        solution.setDistance(totalDistance);
+        solution.setTime((int) totalTime / 1000); // Convert milliseconds to seconds
+        vrpSolutionResponse.setSolution(solution);
 
-        // Convert the solutionResponse to JSON
+        // Convert the vrpSolutionResponse to JSON
         try {
             ObjectMapper mapper = new ObjectMapper();
-            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(solutionResponse);
+            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(vrpSolutionResponse);
         } catch (Exception e) {
             throw new RuntimeException("Error generating JSON response: " + e.getMessage(), e);
         }
@@ -177,12 +213,9 @@ public class VrpService {
 
     // Calculate distance using GraphHopper
     private double calculateDistance(Location start, Location end) {
-        double startLat = start.getCoordinate().getY();
-        double startLon = start.getCoordinate().getX();
-        double endLat = end.getCoordinate().getY();
-        double endLon = end.getCoordinate().getX();
-
-        GHRequest request = new GHRequest(startLat, startLon, endLat, endLon).setProfile("car").setLocale("en");
+        GHRequest request = new GHRequest(start.getCoordinate().getY(), start.getCoordinate().getX(),
+                end.getCoordinate().getY(), end.getCoordinate().getX())
+                .setProfile("car").setLocale("en");
         GHResponse response = graphHopper.route(request);
 
         if (response.hasErrors()) {
@@ -194,12 +227,9 @@ public class VrpService {
 
     // Calculate travel time using GraphHopper
     private long calculateTime(Location start, Location end) {
-        double startLat = start.getCoordinate().getY();
-        double startLon = start.getCoordinate().getX();
-        double endLat = end.getCoordinate().getY();
-        double endLon = end.getCoordinate().getX();
-
-        GHRequest request = new GHRequest(startLat, startLon, endLat, endLon).setProfile("car").setLocale("en");
+        GHRequest request = new GHRequest(start.getCoordinate().getY(), start.getCoordinate().getX(),
+                end.getCoordinate().getY(), end.getCoordinate().getX())
+                .setProfile("car").setLocale("en");
         GHResponse response = graphHopper.route(request);
 
         if (response.hasErrors()) {

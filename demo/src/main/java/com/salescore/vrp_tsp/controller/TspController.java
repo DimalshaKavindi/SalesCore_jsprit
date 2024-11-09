@@ -1,7 +1,7 @@
 package com.salescore.vrp_tsp.controller;
 
 import com.salescore.vrp_tsp.model.TspRequest;
-import com.salescore.vrp_tsp.service.TspService;
+import com.salescore.vrp_tsp.service.TspServiceDistance;
 import com.salescore.vrp_tsp.service.TspServiceDuration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/tsp")
 public class TspController {
 
-    private final TspService tspService;
+    private final TspServiceDistance tspService;
     private final TspServiceDuration tspServiceDuration;
 
     @Autowired
-    public TspController(TspService tspService, TspServiceDuration tspServiceDuration) {
+    public TspController(TspServiceDistance tspService, TspServiceDuration tspServiceDuration) {
         this.tspService = tspService;
         this.tspServiceDuration = tspServiceDuration;
     }

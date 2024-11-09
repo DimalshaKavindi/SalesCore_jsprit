@@ -18,6 +18,7 @@ public class VRPSolutionResponse {
     public static class Solution {
         private double costs;
         private double distance;
+        public int time;
         private int noVehicles;
         private List<Route> routes;
 
@@ -27,6 +28,7 @@ public class VRPSolutionResponse {
         public static class Route {
             private String vehicleId;
             private double distance;
+            public double duration;
             private List<Activity> activities;
 
             @Data
@@ -35,11 +37,11 @@ public class VRPSolutionResponse {
             public static class Activity {
                 private String type; // "start", "service", or "end"
                 private String id;
-                private String locationId;
                 private Address address;
                 private double distance;
-                private List<Integer> loadBefore;
-                private List<Integer> loadAfter;
+                public double duration;
+                private int loadBefore;
+                private int loadAfter;
             }
 
             @Data
@@ -47,6 +49,7 @@ public class VRPSolutionResponse {
             @AllArgsConstructor
             public static class Address {
                 private String locationId;
+                private String locationName;
                 private double lat;
                 private double lon;
             }
