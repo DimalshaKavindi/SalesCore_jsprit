@@ -1,5 +1,6 @@
 package com.salescore.vrp_tsp.model;
 
+import com.graphhopper.jsprit.core.problem.solution.route.activity.TimeWindow;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -53,8 +54,16 @@ public class VrpRequest {
         private String name;
         private Address address;
         private int size;
-        private Long startTime; // Earliest service time
-        private Long endTime;   // Latest service time
+        private TimeWindow timewindow;
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class TimeWindow {
+            private Long startTime; // Earliest service time
+            private Long endTime;
+        }
+           // Latest service time
 
         @Data
         @NoArgsConstructor
