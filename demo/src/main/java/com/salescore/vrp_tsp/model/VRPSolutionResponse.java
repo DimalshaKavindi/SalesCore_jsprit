@@ -42,6 +42,9 @@ public class VRPSolutionResponse {
                 public double duration;
                 private int loadBefore;
                 private int loadAfter;
+                private long arriveTime;
+                private long endTime;
+
             }
 
             @Data
