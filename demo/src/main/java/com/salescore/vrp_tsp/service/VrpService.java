@@ -46,7 +46,7 @@ public class VrpService {
         final int WEIGHT_INDEX = 0;
 
         boolean capacityProvided = vrpRequest.getVehicleTypes().stream().anyMatch(type -> type.getCapacity() > 0);
-        boolean timeWindowProvided = vrpRequest.getServices().stream().anyMatch(service -> service.getStartTime() != null);
+        boolean timeWindowProvided = vrpRequest.getServices().stream().anyMatch(service -> service.getTimeWindow().getStartTime() != null);
 
         // Create vehicle types with capacity check
         List<VehicleTypeImpl> vehicleTypes = new ArrayList<>();
@@ -92,8 +92,8 @@ public class VrpService {
             if (timeWindowProvided) {
                 serviceBuilder.setTimeWindow(
                         new com.graphhopper.jsprit.core.problem.solution.route.activity.TimeWindow(
-                                service.getStartTime(),
-                                service.getEndTime()
+                                service.getTimeWindow().getStartTime(),
+                                service.getTimeWindow().getEndTime()
                         ));
             }
             services.add(serviceBuilder.build());
