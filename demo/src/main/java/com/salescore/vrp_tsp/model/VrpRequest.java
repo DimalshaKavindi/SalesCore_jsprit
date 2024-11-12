@@ -54,7 +54,7 @@ public class VrpRequest {
         private String name;
         private Address address;
         private int size;
-        private TimeWindow timeWindow;
+        private TimeWindow timewindow;
 
         @Data
         @NoArgsConstructor
