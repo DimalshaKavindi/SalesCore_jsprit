@@ -45,16 +45,20 @@ public class VrpService {
     public String solveVrp(VrpRequest vrpRequest) {
         final int WEIGHT_INDEX = 0;
 
-        // Create vehicle types
+        boolean capacityProvided = vrpRequest.getVehicleTypes().stream().anyMatch(type -> type.getCapacity() > 0);
+        boolean timeWindowProvided = vrpRequest.getServices().stream().anyMatch(service -> service.getStartTime() != null);
+
+        // Create vehicle types with capacity check
         List<VehicleTypeImpl> vehicleTypes = new ArrayList<>();
         for (VrpRequest.VehicleType type : vrpRequest.getVehicleTypes()) {
-            VehicleTypeImpl vehicleType = VehicleTypeImpl.Builder.newInstance(type.getTypeId())
-                    .addCapacityDimension(WEIGHT_INDEX, type.getCapacity())
-                    .build();
-            vehicleTypes.add(vehicleType);
+            VehicleTypeImpl.Builder typeBuilder = VehicleTypeImpl.Builder.newInstance(type.getTypeId());
+            if (capacityProvided) {
+                typeBuilder.addCapacityDimension(WEIGHT_INDEX, type.getCapacity());
+            }
+            vehicleTypes.add(typeBuilder.build());
         }
 
-        // Build vehicles
+        // Build vehicles with optional time windows
         List<VehicleImpl> vehicles = new ArrayList<>();
         for (VrpRequest.Vehicle vehicle : vrpRequest.getVehicles()) {
             VehicleTypeImpl type = vehicleTypes.stream()
@@ -62,22 +66,39 @@ public class VrpService {
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Invalid vehicle type: " + vehicle.getTypeId()));
 
-            VehicleImpl vehicleImpl = VehicleImpl.Builder.newInstance(vehicle.getVehicleId())
+            VehicleImpl.Builder vehicleBuilder = VehicleImpl.Builder.newInstance(vehicle.getVehicleId())
                     .setStartLocation(Location.newInstance(vehicle.getStartAddress().getLon(), vehicle.getStartAddress().getLat()))
-                    .setType(type)
-                    .build();
-            vehicles.add(vehicleImpl);
+                    .setType(type);
+
+            // If vehicle time windows are provided, set them here
+            if (vehicle.getStartTime() != null && vehicle.getEndTime() != null) {
+                vehicleBuilder.setEarliestStart(vehicle.getStartTime())
+                        .setLatestArrival(vehicle.getEndTime());
+            }
+
+            vehicles.add(vehicleBuilder.build());
         }
 
-        // Create services
+        // Create services with optional capacity and time window settings
         List<Service> services = new ArrayList<>();
         for (VrpRequest.VrpService service : vrpRequest.getServices()) {
-            Service serviceImpl = Service.Builder.newInstance(service.getId())
-                    .addSizeDimension(WEIGHT_INDEX, service.getSize())
-                    .setLocation(Location.newInstance(service.getAddress().getLon(), service.getAddress().getLat()))
-                    .build();
-            services.add(serviceImpl);
+            Service.Builder serviceBuilder = Service.Builder.newInstance(service.getId())
+                    .setLocation(Location.newInstance(service.getAddress().getLon(), service.getAddress().getLat()));
+
+            if (capacityProvided) {
+                serviceBuilder.addSizeDimension(WEIGHT_INDEX, service.getSize());
+            }
+
+            if (timeWindowProvided) {
+                serviceBuilder.setTimeWindow(
+                        new com.graphhopper.jsprit.core.problem.solution.route.activity.TimeWindow(
+                                service.getStartTime(),
+                                service.getEndTime()
+                        ));
+            }
+            services.add(serviceBuilder.build());
         }
+
 
         // Build the VRP problem
         VehicleRoutingProblem.Builder vrpBuilder = VehicleRoutingProblem.Builder.newInstance();
@@ -104,6 +125,7 @@ public class VrpService {
 
         for (VehicleRoute route : bestSolution.getRoutes()) {
             // Retrieve the vehicle associated with this route
+            long accumulatedTime = 0;
             String vehicleId = route.getVehicle().getId();
             VrpRequest.Vehicle vehicle = vrpRequest.getVehicles().stream()
                     .filter(v -> v.getVehicleId().equals(vehicleId))
@@ -139,11 +161,11 @@ public class VrpService {
             // Process activities
             for (TourActivity activity : route.getActivities()) {
                 double distance = calculateDistance(previousLocation, activity.getLocation());
-                long time = calculateTime(previousLocation, activity.getLocation());
+                long travelTime = calculateTime(previousLocation, activity.getLocation());
                 routeDistance += distance;
-                routeTime += time;
+                routeTime += travelTime;
                 totalDistance += distance;
-                totalTime += time;
+                totalTime += travelTime;
 
                 VrpRequest.VrpService serviceRequest = vrpRequest.getServices().stream()
                         .filter(service -> service.getAddress().getLon() == activity.getLocation().getCoordinate().getX() &&
@@ -161,11 +183,16 @@ public class VrpService {
                         activity.getLocation().getCoordinate().getY(),
                         activity.getLocation().getCoordinate().getX()));
                 serviceActivity.setDistance(distance);
-                serviceActivity.setDuration(time / 1000); // Convert milliseconds to seconds
+                serviceActivity.setDuration(travelTime / 1000); // Convert milliseconds to seconds
                 serviceActivity.setLoadBefore(loadBefore);
                 serviceActivity.setLoadAfter(loadBefore + serviceSize);
-                loadBefore += serviceSize;
 
+                // Set arrival and end times for the service activity
+                serviceActivity.setArriveTime(accumulatedTime + travelTime / 1000); // Arrival in seconds
+                accumulatedTime += travelTime / 1000; // Update accumulated time for travel
+                serviceActivity.setEndTime((long) (accumulatedTime + serviceActivity.getDuration())); // End time after service
+
+                loadBefore += serviceSize;
                 routeResponse.getActivities().add(serviceActivity);
                 previousLocation = activity.getLocation();
             }

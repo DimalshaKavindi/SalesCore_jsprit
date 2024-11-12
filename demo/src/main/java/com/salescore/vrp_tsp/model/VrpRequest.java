@@ -23,6 +23,8 @@ public class VrpRequest {
         private String vehicleId;
         private String typeId;
         private StartAddress startAddress;
+        private Long startTime; // Earliest start time for the vehicle
+        private Long endTime;   // Latest arrival time for the vehicle
 
         @Data
         @NoArgsConstructor
@@ -51,6 +53,8 @@ public class VrpRequest {
         private String name;
         private Address address;
         private int size;
+        private Long startTime; // Earliest service time
+        private Long endTime;   // Latest service time
 
         @Data
         @NoArgsConstructor
