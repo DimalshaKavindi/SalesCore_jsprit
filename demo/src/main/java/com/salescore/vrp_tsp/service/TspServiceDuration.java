@@ -22,7 +22,7 @@ public class TspServiceDuration {
         try {
             graphHopper = new GraphHopper();
             graphHopper.setGraphHopperLocation("target/routing-graph-cache-duration");
-            String osmFilePath = getClass().getClassLoader().getResource("osm/cambodia-latest.osm.pbf").getPath();
+            String osmFilePath = "/app/osm/laos-latest.osm.pbf";
             graphHopper.setOSMFile(osmFilePath);
             graphHopper.setProfiles(new Profile("car").setWeighting("fastest").setTurnCosts(true));
             graphHopper.getCHPreparationHandler().setCHProfiles(new CHProfile("car"));
