@@ -153,7 +153,7 @@ public class TspServiceDistance {
                 "start-location",
                 new TSPSolutionResponse.Activity.Address(
                         startLocation.getLocationId(),
-                        startLocation.getLocationId(),
+                        startLocation.getName(),
                         startLocation.getLat(),
                         startLocation.getLon()),
                 0.0,
@@ -201,7 +201,7 @@ public class TspServiceDistance {
         TSPSolutionResponse.Activity endActivity = new TSPSolutionResponse.Activity(
                 "end",
                 "end-location",
-                new TSPSolutionResponse.Activity.Address("end", "end-location", startLocation.getLat(), startLocation.getLon()),
+                new TSPSolutionResponse.Activity.Address("end", startLocation.getName(), startLocation.getLat(), startLocation.getLon()),
                 cumulativeDistance,
                 cumulativeDuration
         );
