@@ -12,7 +12,9 @@ import com.salescore.vrp_tsp.model.TSPSolutionResponse;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class TspServiceDistance {
@@ -44,20 +46,22 @@ public class TspServiceDistance {
         List<TspRequest.ServiceLocation.Address> orderedLocations = new ArrayList<>();
         TspRequest.ServiceLocation.Address vehicleStart = new TspRequest.ServiceLocation.Address(
                 vehicle.getStartAddress().getLocationId(),
+                vehicle.getStartAddress().getLocationName(),
                 vehicle.getStartAddress().getLon(),
                 vehicle.getStartAddress().getLat()
         );
         orderedLocations.add(vehicleStart);
 
-        // Add service locations to the ordered list
+        Map<TspRequest.ServiceLocation.Address, String> addressToIdMap = new HashMap<>();
         for (TspRequest.ServiceLocation service : services) {
             orderedLocations.add(service.getAddress());
+            addressToIdMap.put(service.getAddress(), service.getId());
         }
 
-        return solveTspWithNearestNeighbor(orderedLocations, vehicle.getVehicleId(),services);
+        return solveTspWithNearestNeighbor(orderedLocations, vehicle.getVehicleId(),addressToIdMap);
     }
 
-    private String solveTspWithNearestNeighbor(List<TspRequest.ServiceLocation.Address> orderedLocations, String vehicleId, List<TspRequest.ServiceLocation> services) {
+    private String solveTspWithNearestNeighbor(List<TspRequest.ServiceLocation.Address> orderedLocations, String vehicleId, Map<TspRequest.ServiceLocation.Address, String> addressToIdMap) {
         List<TspRequest.ServiceLocation.Address> remainingLocations = new ArrayList<>(orderedLocations);
         List<TspRequest.ServiceLocation.Address> finalOrder = new ArrayList<>();
 
@@ -74,13 +78,12 @@ public class TspServiceDistance {
         }
 
         // Add the final segment back to the start location (or designated endpoint)
-        TspRequest.ServiceLocation.Address endLocation = finalOrder.get(finalOrder.size() - 1);
         finalOrder.add(vehicleStart);
 
         double totalDistance = calculateTotalDistance(finalOrder);
         double totalDuration = calculateTotalDuration(finalOrder);
 
-        return formatSolutionResponse(finalOrder, vehicleId, totalDistance, totalDuration, services);
+        return formatSolutionResponse(finalOrder, vehicleId, totalDistance, totalDuration, addressToIdMap);
     }
 
     private TspRequest.ServiceLocation.Address findNearestLocation(TspRequest.ServiceLocation.Address from, List<TspRequest.ServiceLocation.Address> locations) {
@@ -134,7 +137,7 @@ public class TspServiceDistance {
         return response.getBest().getTime() / 1000.0; // Convert milliseconds to seconds
     }
 
-    private String formatSolutionResponse(List<TspRequest.ServiceLocation.Address> finalOrder, String vehicleId, double totalDistance, double totalDuration, List<TspRequest.ServiceLocation> services) {
+    private String formatSolutionResponse(List<TspRequest.ServiceLocation.Address> finalOrder, String vehicleId, double totalDistance, double totalDuration, Map<TspRequest.ServiceLocation.Address, String> addressToIdMap) {
         TSPSolutionResponse response = new TSPSolutionResponse();
         TSPSolutionResponse.Solution solution = new TSPSolutionResponse.Solution(0, totalDistance, (int) totalDuration, 1, new ArrayList<>());
         TSPSolutionResponse.Route route = new TSPSolutionResponse.Route(vehicleId, totalDistance, totalDuration, new ArrayList<>());
@@ -167,16 +170,15 @@ public class TspServiceDistance {
             cumulativeDistance += segmentDistance;
             cumulativeDuration += segmentDuration;
 
-            // Only access `services` if within its bounds
-            String serviceLocationId = (i - 1) < services.size() ? services.get(i - 1).getId() : "unknown";
-            String locationName = (i - 1) < services.size() ? services.get(i - 1).getName() : "unknown";
+            // Fetch correct id from the map
+            String serviceLocationId = addressToIdMap.getOrDefault(location, "unknown");
 
             TSPSolutionResponse.Activity visitActivity = new TSPSolutionResponse.Activity(
                     "visit",
                     serviceLocationId,
                     new TSPSolutionResponse.Activity.Address(
                             location.getLocationId(),
-                            locationName,
+                            location.getName(),
                             location.getLat(),
                             location.getLon()),
                     cumulativeDistance,
