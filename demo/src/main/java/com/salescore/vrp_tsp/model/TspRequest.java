@@ -26,6 +26,7 @@ public class TspRequest {
         @AllArgsConstructor
         public static class StartAddress{
             private String locationId;
+            private String locationName;
             private double lon;
             private double lat;
         }
@@ -36,7 +37,6 @@ public class TspRequest {
     @AllArgsConstructor
     public static class ServiceLocation {
         private String id;
-        private String name;
         private Address address;
 
         @Data
@@ -44,6 +44,7 @@ public class TspRequest {
         @AllArgsConstructor
         public static class Address {
             private String locationId;
+            private String name;
             private double lon;
             private double lat;
         }
