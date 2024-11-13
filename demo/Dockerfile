@@ -8,7 +8,7 @@ WORKDIR /app
 COPY target/vrp-0.0.1-SNAPSHOT.jar app.jar
 
 # Copy the required OSM file into the container
-COPY osm/cambodia-latest.osm.pbf /app/osm/cambodia-latest.osm.pbf
+COPY src/main/resources/osm/laos-latest.osm.pbf /app/osm/laos-latest.osm.pbf
 
 # Make port 8080 available to the world outside this container
 EXPOSE 8080

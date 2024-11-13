@@ -33,7 +33,7 @@ public class VrpServiceDistance {
         try {
             graphHopper = new GraphHopper();
             graphHopper.setGraphHopperLocation("target/routing-graph-cache-dis");
-            String osmFilePath = getClass().getClassLoader().getResource("osm/cambodia-latest.osm.pbf").getPath();
+            String osmFilePath = getClass().getClassLoader().getResource("osm/laos-latest.osm.pbf").getPath();
             graphHopper.setOSMFile(osmFilePath);
             graphHopper.setProfiles(new Profile("car").setWeighting("fastest"));
             graphHopper.getCHPreparationHandler().setCHProfiles(new CHProfile("car"));

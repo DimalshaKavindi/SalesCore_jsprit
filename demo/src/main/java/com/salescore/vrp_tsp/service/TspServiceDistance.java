@@ -22,7 +22,7 @@ public class TspServiceDistance {
         try {
             graphHopper = new GraphHopper();
             graphHopper.setGraphHopperLocation("target/routing-graph-cache-distance");
-            String osmFilePath = getClass().getClassLoader().getResource("osm/cambodia-latest.osm.pbf").getPath();
+            String osmFilePath = "/app/osm/laos-latest.osm.pbf";
             graphHopper.setOSMFile(osmFilePath);
             graphHopper.setProfiles(new Profile("car").setWeighting("shortest"));
             graphHopper.getCHPreparationHandler().setCHProfiles(new CHProfile("car"));
